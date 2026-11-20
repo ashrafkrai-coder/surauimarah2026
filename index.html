@@ -5,9 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Surau Al-Nur — Eviden Imarah 2026</title>
 <meta name="theme-color" content="#0b3d2e">
+<meta name="color-scheme" content="light dark">
 <meta name="description" content="Akses semua fail dan muat naik gambar eviden Surau Imarah 2026, SMK Taman Medan.">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -55,6 +57,16 @@
 
 <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
 <input type="file" id="fileGal" accept="image/*,application/pdf" multiple hidden>
+<div id="sheet" hidden>
+  <div class="sh-bg" data-close></div>
+  <div class="sh-box" role="dialog" aria-modal="true" aria-labelledby="shT">
+    <i class="sh-grab"></i>
+    <h3 id="shT"></h3>
+    <p id="shP" class="sm mut"></p>
+    <input id="shIn" class="in" maxlength="80" autocomplete="off">
+    <div class="row" style="margin-top:14px"><button class="btn sec" data-close>Batal</button><button class="btn" id="shOk">Simpan</button></div>
+  </div>
+</div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="config.js"></script>

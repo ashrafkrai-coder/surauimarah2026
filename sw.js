@@ -1,9 +1,14 @@
-const CACHE = 'surau-v1';
+const CACHE = 'surau-v2';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'tree.js', 'manifest.webmanifest',
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png'];
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
+// Satu fail gagal dimuat tidak lagi membatalkan pemasangan service worker.
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => Promise.allSettled(SHELL.map(u => c.add(u))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
@@ -13,7 +18,8 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Stale-while-revalidate untuk fail aplikasi sahaja (permintaan ke Google tidak disentuh).
+// Fail aplikasi: stale-while-revalidate. Navigasi: jatuh balik ke index.html apabila luar talian.
+// Permintaan ke Google (Apps Script / Drive) tidak disentuh.
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
@@ -25,7 +31,7 @@ self.addEventListener('fetch', e => {
       const net = fetch(req).then(res => {
         if (res && res.ok) cache.put(req, res.clone());
         return res;
-      }).catch(() => hit);
+      }).catch(async () => hit || (req.mode === 'navigate' ? cache.match('index.html') : Response.error()));
       return hit || net;
     })
   );

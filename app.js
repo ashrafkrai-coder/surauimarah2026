@@ -59,6 +59,52 @@ function pathOf(n) { const p = []; for (let c = n; c && c !== root; c = parentOf
 const bahagian = () => kids(root).filter(k => k.folder && /^BAHAGIAN/i.test(k.name));
 const topOf = n => { let c = n; while (c && parentOf.get(c.id) && parentOf.get(c.id) !== root) c = parentOf.get(c.id); return c; };
 
+/* ---------- pemasangan PWA ---------- */
+let deferredInstall = null;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; if (location.hash.length < 3 || location.hash === '#/') route(); });
+addEventListener('appinstalled', () => { deferredInstall = null; store.set('installed', true); toast('Aplikasi berjaya dipasang ✓'); route(); });
+async function doInstall() {
+  if (deferredInstall) { deferredInstall.prompt(); await deferredInstall.userChoice.catch(() => { }); deferredInstall = null; route(); }
+  else showIosHelp();
+}
+function showIosHelp() {
+  const ios = isIOS();
+  openSheet({
+    title: 'Pasang di skrin utama', input: false, okText: 'Faham', hideCancel: true,
+    text: ios ? 'Buka dalam Safari, ketik butang Kongsi (petak dengan anak panah ke atas), kemudian pilih “Tambah ke Skrin Utama”.'
+      : 'Buka menu pelayar (⋮) kemudian pilih “Pasang aplikasi” atau “Tambah ke skrin utama”.'
+  });
+}
+function installCard() {
+  if (isStandalone() || store.get('hideInstall', false)) return '';
+  if (!deferredInstall && !isIOS()) return '';
+  return `<div class="install"><img src="icons/icon-192.png" alt="" width="44" height="44">
+    <div class="t"><b>Pasang aplikasi</b><span>Akses pantas dari skrin utama, kamera penuh &amp; kerja luar talian</span></div>
+    <button class="btn" id="btnInstall">Pasang</button><button class="x" id="btnInstallX" aria-label="Tutup">×</button></div>`;
+}
+function bindInstall() {
+  const b = $('#btnInstall'); if (b) b.onclick = doInstall;
+  const x = $('#btnInstallX'); if (x) x.onclick = () => { store.set('hideInstall', true); route(); };
+}
+
+/* ---------- helaian bawah (ganti prompt()) ---------- */
+function openSheet({ title, text = '', input = true, placeholder = '', okText = 'Simpan', hideCancel = false }) {
+  return new Promise(res => {
+    const sh = $('#sheet'), inp = $('#shIn'), ok = $('#shOk');
+    $('#shT').textContent = title; $('#shP').textContent = text;
+    inp.hidden = !input; inp.value = ''; inp.placeholder = placeholder; ok.textContent = okText;
+    sh.querySelector('.sh-box .row .sec').hidden = hideCancel;
+    sh.hidden = false;
+    const done = v => { sh.hidden = true; ok.onclick = null; sh.onclick = null; inp.onkeydown = null; res(v); };
+    ok.onclick = () => done(input ? inp.value.trim() : true);
+    sh.onclick = e => { if (e.target.hasAttribute('data-close')) done(null); };
+    inp.onkeydown = e => { if (e.key === 'Enter') ok.click(); if (e.key === 'Escape') done(null); };
+    setTimeout(() => (input ? inp : ok).focus(), 60);
+  });
+}
+
 /* ---------- ikon fail ---------- */
 function ficon(n) {
   if (n.folder) return `<div class="fi fo"><svg viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>`;
@@ -115,6 +161,7 @@ function route() {
   else if (a === 'cam') viewCam(b);
   else if (a === 'set') viewSet();
   else viewHome();
+  bindInstall();
   window.scrollTo(0, 0);
 }
 function rerenderSoft() {
@@ -132,12 +179,18 @@ function viewHome() {
   const docs = [];
   (function w(n) { kids(n).forEach(k => k.folder ? w(k) : (/^image\//.test(k.mime || '') ? 0 : docs.push(k))); })(root);
   const at = store.get('treeAt', 0);
-  let h = `<section class="hero"><h1>Penilaian Surau Imarah 2026</h1><p>Surau Al-Nur · SMK Taman Medan</p>
+  const allL = bs.flatMap(b => leaves(b)); const allF = allL.filter(l => filesOf(l).length).length;
+  const tot = allL.length ? Math.round(allF / allL.length * 100) : 0, C = 2 * Math.PI * 32;
+  let h = installCard();
+  h += `<section class="hero"><div class="hero-row"><div class="hero-t"><span class="eyebrow">Eviden Imarah 2026</span>
+    <h1>Penilaian Surau Imarah</h1><p>Surau Al-Nur · SMK Taman Medan</p></div>
+    ${live ? `<div class="ring" role="img" aria-label="${tot}% kriteria ada eviden"><svg viewBox="0 0 76 76"><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6e7b8"/><stop offset="1" stop-color="#c9a24a"/></linearGradient></defs>
+      <circle class="tr" cx="38" cy="38" r="32"/><circle class="fg" cx="38" cy="38" r="32" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - tot / 100)).toFixed(1)}"/></svg><b>${tot}<small>%</small></b></div>` : ''}</div>
     ${live ? `<span class="chip live"><i></i>Tersambung ke Drive${at ? ' · ' + fmtDT(at) : ''}</span>`
       : `<span class="chip snap"><i></i>Data simpanan · belum tersambung</span>`}</section>`;
   if (!live) h += `<div class="note warn">Struktur folder dipaparkan daripada salinan tersimpan. Untuk status eviden terkini dan muat naik gambar, <a href="#/set">sambungkan ke Drive di Tetapan</a>.</div>`;
 
-  h += `<div class="row" style="margin-bottom:6px"><a class="btn gold" href="#/cam">${camSvg.replace('<svg', '<svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')} Ambil gambar eviden</a>
+  h += `<div class="row" style="margin-bottom:6px"><a class="btn gold" href="#/cam">${camSvg.replace('<svg', '<svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"')} Ambil gambar</a>
     <a class="btn sec" href="#/f/root">Semua fail</a></div>`;
 
   h += `<h2>Status eviden</h2>`;
@@ -200,8 +253,9 @@ function viewFiles(id) {
   $('#q').addEventListener('input', draw); draw();
   const mk = $('#btnMk');
   if (mk) mk.onclick = async () => {
-    const name = prompt('Nama folder baharu di dalam "' + node.name + '":'); if (!name || !name.trim()) return;
-    try { await api({ action: 'mkdir', parentId: node.id, name: name.trim() }); toast('Folder dicipta'); await refreshTree(true); } catch (e) { toast(e.message, 3500); }
+    const name = await openSheet({ title: 'Folder baharu', text: 'Dalam: ' + (node === root ? 'Semua fail' : node.name), placeholder: 'Nama folder' });
+    if (!name) return;
+    try { await api({ action: 'mkdir', parentId: node.id, name }); toast('Folder dicipta'); await refreshTree(true); } catch (e) { toast(e.message, 3500); }
   };
   if (node !== root) {
     const f = document.createElement('a'); f.className = 'fab'; f.href = '#/cam/' + node.id;
@@ -243,7 +297,7 @@ async function viewCam(fid) {
       <label class="f" for="selF">Kriteria / folder tujuan</label>
       <select id="selF" class="in">${folderOptions()}</select>
       <label class="f" for="cap">Keterangan gambar (pilihan)</label>
-      <input id="cap" class="in" maxlength="80" placeholder="cth: Tempat wuduk selepas gotong-royong" value="${esc(camState.caption)}">
+      <input id="cap" class="in" maxlength="80" placeholder="cth: Tempat wuduk" value="${esc(camState.caption)}">
       <div class="sw"><div><b class="sm">Cop tarikh &amp; masa pada gambar</b><div class="xs mut">Dicetak di bahagian bawah gambar sebagai bukti</div></div>
         <input type="checkbox" id="wm" ${S.wm ? 'checked' : ''} aria-label="Cop tarikh dan masa"></div>
       <div class="row" style="margin-top:6px">
@@ -419,6 +473,9 @@ async function flushQueue(manual) {
 function viewSet() {
   setTab('set');
   view.innerHTML = `
+    ${isStandalone() ? '' : `<div class="card"><h3>Pasang aplikasi</h3>
+      <p class="sm mut" style="margin:4px 0 12px">Pasang di skrin utama untuk akses pantas, kamera penuh skrin dan sokongan luar talian.</p>
+      <button class="btn gold block" id="btnInstall">Pasang di skrin utama</button></div>`}
     <div class="card"><h3>Sambungan ke Google Drive</h3>
       <p class="sm mut" style="margin:4px 0 0">Diperlukan untuk status eviden terkini, muat naik gambar dan folder baharu. Folder anda kekal peribadi.</p>
       <label class="f" for="iUrl">URL Apps Script (berakhir dengan <code>/exec</code>)</label>
@@ -448,4 +505,8 @@ addEventListener('online', () => { netState(); flushQueue(); refreshTree(true); 
 addEventListener('offline', netState);
 netState(); route();
 if (configured()) { refreshTree(true); flushQueue(); }
-if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { }));
+if ('serviceWorker' in navigator) {
+  const had = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (had) toast('Versi baharu aplikasi sedia — muat semula untuk kemas kini', 4500); });
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { }));
+}
